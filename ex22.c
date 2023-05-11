@@ -109,7 +109,7 @@ int checkIfExistCFiles(char *path, char *cFileName)
     struct dirent *dir;
     struct stat st;
     int found_c_file = 0;
-
+    struct stat sb;
     if ((d = opendir(path)) == NULL)
     {
 
@@ -120,9 +120,10 @@ int checkIfExistCFiles(char *path, char *cFileName)
     {
         while ((dir = readdir(d)) != NULL)
         {
+            stat(dir->d_name, &sb);
             if (
                 (strcmp(&dir->d_name[strlen(dir->d_name) - 2], ".c") == 0) &&
-                (strlen(dir->d_name) > 2))
+                (strlen(dir->d_name) > 2) && (S_ISDIR(sb.st_mode) == false))
             {
                 strcpy(cFileName, dir->d_name);
                 int x = closedir(d);
@@ -147,7 +148,7 @@ void alarm_hand (int sig) {
 	// signal(SIGALRM, alarm_hand);
 }
 
-void compileAndRunCFiles(char *folderName, char *absPath2, int fdResults, char *cFileName, bool* compStatus, int errorFD)
+void compileAndRunCFiles(char *folderName, char *absPath2, int fdResults, char *cFileName, bool* compStatus, int errorFD, char* startPath, char* line1)
 {
     int in, out;
 
@@ -268,8 +269,20 @@ void compileAndRunCFiles(char *folderName, char *absPath2, int fdResults, char *
         // }
         dup2(errorFD, 2);
 
-        // close(errorFD);
-        int ret = execlp("gcc", "gcc", "-o", "output.out", cFileName, NULL);
+        int x = chdir(startPath);
+        if (x == -1)
+        {
+            perror("Error in: chdir");
+        }
+        char tempPath[150];
+        strcpy(tempPath, line1);
+        strcat(tempPath, "/");
+        strcat(tempPath, folderName);
+        strcat(tempPath, "/");
+        strcat(tempPath, cFileName);
+
+        // int ret = execlp("gcc", "gcc", "-o", "output.out", cFileName, NULL);
+        int ret = execlp("gcc", "gcc", "-o", "output.out", tempPath, NULL);
 
         if (ret == -1)
         {
@@ -327,7 +340,7 @@ int compareOutput(char *compareProgram, char *correctOutput, int errorFD)
 }
 
 /////////////////////////////////////////////////////////////////////////////////
-void loopCompile(char *absPath1, char *absPath2, char *absPath3, char *absPathCompare, int errorFD)
+void loopCompile(char *absPath1, char *absPath2, char *absPath3, char *absPathCompare, int errorFD, char* startPath, char* line1)
 {
     char cFileName[150];
     // bool compStatus;
@@ -354,7 +367,7 @@ void loopCompile(char *absPath1, char *absPath2, char *absPath3, char *absPathCo
     {
         bool compStatus = true;
         char strResult[150];
-        memset(strResult, 0, sizeof(strResult)); // Initialize the array to all zeroes
+        // memset(strResult, '\0', sizeof(strResult)); // Initialize the array to all zeroes
 
         if (dit->d_type == DT_DIR && (strcmp(dit->d_name, ".") != 0) &&
             (strcmp(dit->d_name, "..") != 0))
@@ -362,7 +375,7 @@ void loopCompile(char *absPath1, char *absPath2, char *absPath3, char *absPathCo
             if (checkIfExistCFiles(dit->d_name, cFileName))
             {
                 // compile the c file in the folder (if exist)
-                compileAndRunCFiles(dit->d_name, absPath2, fdResults, cFileName, &compStatus, errorFD);
+                compileAndRunCFiles(dit->d_name, absPath2, fdResults, cFileName, &compStatus, errorFD, startPath, line1);
 
                 // comp succeeded
                 //////////////////////////////
@@ -386,6 +399,7 @@ void loopCompile(char *absPath1, char *absPath2, char *absPath3, char *absPathCo
                         strcat(strResult, ",20,TIMEOUT\n");
                         break;
                     }
+                    // printf("%s\n",strResult);
                     int a = write(fdResults, strResult, strlen(strResult));
                     if (a == -1)
                     {
@@ -438,9 +452,18 @@ int main(int argc, char *argv[])
     char absPath2[150];
     char absPath3[150];
     char absPathErr[150];
+    char startPath[150];
+
+    if (getcwd(startPath, sizeof(startPath)) == NULL) {
+        perror("Error in: getcwd");
+    }
+
+    
 
     char absPathCompare[150];
     int newfd;
+
+
 
     // get the abs path to the comp.out
     getPathFromLine(absPathCompare, "comp.out");
@@ -466,7 +489,7 @@ int main(int argc, char *argv[])
     getPathFromLine(absPathErr, "errors.txt");
     
     checkIfFolder(line1, line2, line3);
-    loopCompile(absPath1, absPath2, absPath3, absPathCompare, newfd);
+    loopCompile(absPath1, absPath2, absPath3, absPathCompare, newfd, startPath, line1);
 
     close(newfd);
 }
