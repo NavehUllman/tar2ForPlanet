@@ -120,7 +120,7 @@ int checkIfExistCFiles(char *path, char *cFileName)
     {
         while ((dir = readdir(d)) != NULL)
         {
-            stat(dir->d_name, &sb);
+            stat(cFileName, &sb);
             if (
                 (strcmp(&dir->d_name[strlen(dir->d_name) - 2], ".c") == 0) &&
                 (strlen(dir->d_name) > 2) && (S_ISDIR(sb.st_mode) == false))
@@ -281,8 +281,15 @@ void compileAndRunCFiles(char *folderName, char *absPath2, int fdResults, char *
         strcat(tempPath, "/");
         strcat(tempPath, cFileName);
 
+        char outTemp[150];
+        strcpy(outTemp, line1);
+        strcat(outTemp, "/");
+        strcat(outTemp, folderName);
+        strcat(outTemp, "/");
+        strcat(outTemp, "output.out");
+
         // int ret = execlp("gcc", "gcc", "-o", "output.out", cFileName, NULL);
-        int ret = execlp("gcc", "gcc", "-o", "output.out", tempPath, NULL);
+        int ret = execlp("gcc", "gcc", "-o", outTemp, tempPath, NULL);
 
         if (ret == -1)
         {
